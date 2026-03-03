@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>External K-Way Merge Sort</title>
+<style>
+:root{
+--bg:#0b0d11;--s1:#111318;--s2:#181b22;--s3:#1e2230;
+--bd:#252a36;--bd2:#2e3446;
+--cyan:#22d3ee;--cyan-d:rgba(34,211,238,.12);--cyan-g:rgba(34,211,238,.28);
+--green:#4ade80;--green-d:rgba(74,222,128,.12);
+--amber:#fbbf24;--amber-d:rgba(251,191,36,.12);
+--red:#f87171;--red-d:rgba(248,113,113,.12);
+--violet:#a78bfa;--violet-d:rgba(167,139,250,.12);
+--text:#e2e8f0;--dim:#94a3b8;--muted:#4a5568;--gray:#64748b;
+--mono:'Cascadia Code','Fira Code','IBM Plex Mono',monospace;
+--sans:'Inter','Segoe UI',sans-serif;--r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;
+background-image:linear-gradient(rgba(34,211,238,.025)1px,transparent 1px),
+linear-gradient(90deg,rgba(34,211,238,.025)1px,transparent 1px);
+background-size:32px 32px;pointer-events:none}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--s1)}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+.app{position:relative;z-index:1;max-width:1540px;margin:0 auto;padding:14px 18px 40px}
+
+/* Topbar */
+.topbar{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);
+padding:11px 18px;display:flex;align-items:center;gap:12px;margin-bottom:14px;
+flex-wrap:wrap;box-shadow:0 2px 24px rgba(0,0,0,.4)}
+.brand{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.brand-icon{width:32px;height:32px;background:var(--cyan-d);border:1px solid var(--cyan-g);
+border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.brand-name{font-family:var(--mono);font-weight:700;font-size:14px;color:var(--cyan);letter-spacing:.02em}
+.sep{flex:1;min-width:6px}
+.controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+
+/* Form controls */
+.file-btn{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd2);
+color:var(--dim);font-family:var(--mono);font-size:11px;padding:7px 13px;border-radius:8px;
+cursor:pointer;transition:all .2s;white-space:nowrap}
+.file-btn:hover{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-d)}
+.file-btn svg{width:13px;height:13px;flex-shrink:0}
+.ctrl-grp{display:flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:6px 11px}
+.ctrl-lbl{font-family:var(--mono);font-size:10px;color:var(--gray);letter-spacing:.08em;white-space:nowrap}
+.ctrl-input{width:50px;background:var(--s3);border:1px solid var(--bd2);color:var(--cyan);
+font-family:var(--mono);font-size:13px;font-weight:600;border-radius:4px;padding:3px 6px;outline:none;text-align:center}
+.ctrl-input:focus{border-color:var(--cyan)}
+.speed-grp{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:6px 12px}
+input[type=range]{-webkit-appearance:none;width:88px;height:4px;background:var(--bd2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;background:var(--cyan);border-radius:50%;transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3)}
+.speed-val{font-family:var(--mono);font-size:11px;color:var(--cyan);min-width:30px}
+.vsep{width:1px;height:26px;background:var(--bd2);flex-shrink:0}
+
+/* Buttons */
+.btn{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;
+font-weight:700;padding:8px 16px;border-radius:8px;cursor:pointer;border:none;transition:all .2s;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.btn-demo{background:var(--amber-d);border:1px solid rgba(251,191,36,.3);color:var(--amber)}
+.btn-demo:hover{background:rgba(251,191,36,.22)}
+.btn-run{background:var(--cyan);color:#0a0c10;font-size:13px;padding:9px 22px}
+.btn-run:hover:not(:disabled){background:#67e8f9}
+.btn-stop{background:var(--red-d);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.btn-stop:hover{background:rgba(248,113,113,.2)}
+.btn-pause{background:var(--amber-d);border:1px solid rgba(251,191,36,.35);color:var(--amber)}
+.btn-pause:hover{background:rgba(251,191,36,.24)}
+.btn-pause.is-paused{background:var(--cyan-d);border-color:var(--cyan-g);color:var(--cyan)}
+.btn-pause.is-paused:hover{background:rgba(34,211,238,.22)}
+.btn-step{background:var(--violet-d);border:1px solid rgba(167,139,250,.35);color:var(--violet)}
+.btn-step:hover:not(:disabled){background:rgba(167,139,250,.24)}
+.btn-back{background:rgba(100,116,139,.12);border:1px solid rgba(100,116,139,.3);color:var(--gray)}
+.btn-back:hover:not(:disabled){background:rgba(100,116,139,.22);color:var(--dim)}
+.btn-reset{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red)}
+.btn-reset:hover{background:rgba(248,113,113,.2)}
+.btn-sort{background:var(--green-d);border:1px solid rgba(74,222,128,.3);color:var(--green)}
+.btn-sort:hover{background:rgba(74,222,128,.22)}
+.btn-dl-sort{display:none;align-items:center;gap:7px;font-family:var(--mono);font-size:12px;font-weight:700;
+padding:8px 16px;border-radius:8px;cursor:pointer;border:1px solid rgba(167,139,250,.35);
+background:rgba(167,139,250,.15);color:var(--violet);transition:all .2s;white-space:nowrap}
+.btn-dl-sort:hover{background:rgba(167,139,250,.26)}
+.btn-dl-sort.visible{display:flex}
+.btn-clr{background:none;border:none;font-family:var(--mono);font-size:10px;color:var(--gray);
+cursor:pointer;padding:2px 6px;border-radius:3px;margin-left:auto;transition:color .2s}
+.btn-clr:hover{color:var(--red)}
+.btn-dl{display:inline-flex;align-items:center;gap:5px;background:var(--green-d);
+border:1px solid rgba(74,222,128,.3);color:var(--green);font-family:var(--mono);
+font-size:11px;font-weight:700;padding:4px 12px;border-radius:6px;text-decoration:none;transition:all .2s;margin-left:auto}
+.btn-dl:hover{background:rgba(74,222,128,.22)}
+
+/* Trạng thái hiển thị */
+.status-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;
+  padding:5px 12px;border-radius:20px;white-space:nowrap;
+  background:var(--s2);border:1px solid var(--bd2);color:var(--gray);
+}
+.status-badge.running{background:var(--amber-d);border-color:rgba(251,191,36,.4);color:var(--amber)}
+.status-badge.paused{background:var(--cyan-d);border-color:var(--cyan-g);color:var(--cyan)}
+.status-badge.finished{background:var(--green-d);border-color:rgba(74,222,128,.4);color:var(--green)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.status-dot.pulse{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Toast */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);
+z-index:900;opacity:0;pointer-events:none;background:var(--s1);
+border:1px solid rgba(248,113,113,.45);border-radius:10px;padding:12px 20px;
+display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12px;color:var(--red);
+box-shadow:0 4px 32px rgba(0,0,0,.5);transition:opacity .25s,transform .25s;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.toast-icon{font-size:15px;flex-shrink:0}
+
+/* Stat bar */
+.stat-bar{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px;max-width:320px}
+.stat-card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:10px 18px}
+.stat-lbl{font-family:var(--mono);font-size:9px;color:var(--gray);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.stat-val{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1}
+.g{color:var(--green)}
+
+/* Layout */
+.main{display:grid;grid-template-columns:1fr 370px;gap:14px;align-items:start}
+.col-left{min-width:0}
+.col-right{position:sticky;top:14px;max-height:calc(100vh - 28px);display:flex;flex-direction:column;gap:0;overflow:hidden}
+
+/* Panels */
+.panel{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:12px;flex-shrink:0}
+.panel:last-child{margin-bottom:0}
+.panel-hdr{display:flex;align-items:center;gap:9px;padding:10px 15px;border-bottom:1px solid var(--bd);background:var(--s2)}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.cy{background:var(--cyan)}.dot.am{background:var(--amber)}
+.dot.gr{background:var(--green)}.dot.vi{background:var(--violet)}.dot.gy{background:var(--gray)}
+.panel-ttl{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.panel-info{font-family:var(--mono);font-size:10px;color:var(--gray);margin-left:auto}
+.placeholder{font-family:var(--mono);font-size:11px;color:var(--gray);text-align:center;padding:20px;width:100%;opacity:.6}
+
+/* Run cards */
+.runs-grid{padding:12px;display:flex;flex-wrap:wrap;gap:8px;min-height:84px}
+.run-card{background:var(--s2);border:1px solid var(--bd2);border-radius:8px;padding:8px 10px;min-width:90px;max-width:220px;transition:border-color .2s}
+.run-card.active{border-color:var(--amber);background:var(--amber-d)}
+.run-lbl{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--cyan);letter-spacing:.08em;margin-bottom:5px}
+.run-chips{display:flex;flex-wrap:wrap;gap:3px}
+.run-chip{font-family:var(--mono);font-size:10px;font-weight:600;background:var(--s3);border:1px solid var(--bd2);border-radius:3px;padding:2px 5px;color:var(--dim);cursor:default;transition:opacity .2s}
+.run-chip.consumed{opacity:.3}
+
+/* Buffers */
+.buffers-area{padding:12px;display:flex;gap:8px;min-height:70px;overflow-x:auto}
+.buf-col{flex:1;min-width:78px;background:var(--s2);border:1px solid var(--bd);border-radius:6px;padding:8px;transition:border-color .2s}
+.buf-col.active-buf{border-color:var(--amber)}
+.buf-col-lbl{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--gray);letter-spacing:.06em;margin-bottom:6px}
+.buf-cells{display:flex;flex-direction:column;gap:3px}
+.buf-cell{font-family:var(--mono);font-size:10px;font-weight:600;background:var(--s3);border:1px solid rgba(251,191,36,.2);border-radius:3px;padding:2px 6px;color:var(--amber);text-align:center;transition:opacity .2s}
+.buf-cell.consumed{opacity:0}
+.buf-empty{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;padding:4px;font-style:italic}
+
+/* Output stream */
+.output-area{padding:12px;display:flex;flex-wrap:wrap;gap:4px;min-height:42px}
+.out-chip{font-family:var(--mono);font-size:10px;font-weight:700;background:var(--green-d);border:1px solid rgba(74,222,128,.2);color:var(--green);padding:3px 7px;border-radius:4px}
+.progress-wrap{height:3px;background:var(--bd);border-radius:2px;overflow:hidden;margin:0 12px 10px}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--cyan),var(--violet));border-radius:2px;width:0%;transition:width .3s ease}
+
+/* Heap */
+.heap-container{position:relative;min-height:320px;overflow:hidden}
+.heap-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.heap-nodes{position:absolute;inset:0}
+.heap-node{position:absolute;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+font-family:var(--mono);font-weight:700;cursor:default;white-space:nowrap;box-sizing:border-box;
+padding:0 6px;min-width:48px;height:48px;
+transition:left .25s cubic-bezier(.4,0,.2,1),top .25s cubic-bezier(.4,0,.2,1),background .2s,border-color .2s;
+will-change:left,top;z-index:5}
+.hn-root{background:var(--cyan);color:#0a0c10;border:1px solid rgba(255,255,255,0.4)}
+.hn-inner{background:var(--s3);color:var(--dim);border:1px solid var(--bd2)}
+.hn-leaf{background:var(--s2);color:var(--muted);border:1px solid var(--bd)}
+@keyframes heap-push-glow{
+  0%{box-shadow:0 0 0 3px rgba(167,139,250,.0)}
+  15%{box-shadow:0 0 0 4px rgba(167,139,250,.9),0 0 22px rgba(167,139,250,.7)}
+  60%{box-shadow:0 0 0 3px rgba(167,139,250,.5),0 0 14px rgba(167,139,250,.4)}
+  100%{box-shadow:0 0 0 0px rgba(167,139,250,.0)}
+}
+.node-highlight{animation:heap-push-glow 1s ease-out forwards;border-color:var(--violet)!important}
+
+/* Event log */
+.panel-log{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;margin-bottom:0}
+.log-box{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:4px;min-height:0;max-height:250px}
+.log-entry{padding:6px 9px;border-radius:5px;border-left:3px solid transparent;font-family:var(--mono);font-size:10px;line-height:1.5}
+.log-entry.RUN_CREATED{background:var(--cyan-d);border-color:var(--cyan);color:#93e6f8}
+.log-entry.BUFFER_LOAD{background:var(--amber-d);border-color:var(--amber);color:#fde68a}
+.log-entry.HEAP_PUSH{background:var(--violet-d);border-color:var(--violet);color:#c4b5fd}
+.log-entry.HEAP_POP{background:var(--green-d);border-color:var(--green);color:#86efac}
+.log-entry.OUTPUT_FLUSH{background:var(--red-d);border-color:var(--red);color:#fca5a5}
+.log-entry.PASS_START{background:var(--violet-d);border-color:var(--violet);color:var(--violet);font-weight:700}
+.log-entry.SORT_COMPLETE{background:var(--green-d);border-color:var(--green);color:var(--green);font-weight:700}
+.log-badge{font-size:8px;font-weight:700;letter-spacing:.06em;opacity:.65;display:block;margin-bottom:1px}
+
+/* Log position indicator */
+.log-pos{font-family:var(--mono);font-size:9px;color:var(--muted);padding:4px 10px 8px;text-align:right}
+
+
+/* MinHeap Activity panel */
+.heap-area{padding:12px;display:flex;flex-wrap:wrap;gap:5px;min-height:44px;align-items:center}
+.heap-chip{font-family:var(--mono);font-size:10px;font-weight:700;
+  background:var(--violet-d);border:1px solid rgba(167,139,250,.25);color:var(--violet);
+  padding:3px 8px;border-radius:4px;transition:all .2s}
+.heap-chip.heap-min{
+  background:var(--cyan);color:#0a0c10;
+  border:1px solid rgba(255,255,255,.3);
+  box-shadow:0 0 8px rgba(34,211,238,.5);
+  transform:scale(1.08);
+}
+.heap-empty-msg{font-family:var(--mono);font-size:11px;color:var(--muted);font-style:italic}
+
+/* Loading overlay */
+.overlay{display:none;position:fixed;inset:0;z-index:500;background:rgba(11,13,17,.88);
+backdrop-filter:blur(4px);align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.overlay.show{display:flex}
+.spinner{width:36px;height:36px;border:3px solid var(--bd2);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.overlay-text{font-family:var(--mono);font-size:12px;color:var(--dim)}
+
+@media(max-width:1100px){.main{grid-template-columns:1fr}.col-right{position:static;max-height:none;overflow:visible}.log-box{max-height:250px}}
+@media(max-width:700px){.controls{gap:6px}}
+</style>
+</head>
+<body>
+
+<!-- Toast cảnh báo -->
+<div id="toast" class="toast">
+  <span class="toast-icon">&#9888;</span>
+  <span id="toastMsg">Vui lòng upload file .bin hoặc bấm Demo trước khi chạy.</span>
+</div>
+
+<div id="loadingOverlay" class="overlay">
+  <div class="spinner"></div>
+  <div id="loadingText" class="overlay-text">Processing...</div>
+</div>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">&#9881;</div>
+      <div class="brand-name">External Sort</div>
+    </div>
+    <div class="sep"></div>
+    <div class="controls">
+
+      <!-- Upload -->
+      <label class="file-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span id="fileLabel">Upload .bin</span>
+        <input type="file" id="fileInput" accept=".bin" style="display:none" onchange="onFileChange(this)">
+      </label>
+
+      <button type="button" class="btn btn-demo" onclick="generateDemo()">&#9889; Demo</button>
+
+      <div class="ctrl-grp">
+        <span class="ctrl-lbl">K-WAY</span>
+        <input class="ctrl-input" type="number" id="kWay" value="3" min="2" max="16">
+      </div>
+      <div class="ctrl-grp">
+        <span class="ctrl-lbl">BLOCK</span>
+        <input class="ctrl-input" type="number" id="blockSize" value="15" min="1" max="200">
+      </div>
+      <div class="speed-grp">
+        <span class="ctrl-lbl">SPD</span>
+        <input type="range" id="speedSlider" min="1" max="10" value="2">
+        <span id="speedVal" class="speed-val">2x</span>
+      </div>
+
+      <div class="vsep"></div>
+
+      <!-- Trạng thái -->
+      <span id="statusBadge" class="status-badge">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Idle</span>
+      </span>
+
+      <div class="vsep"></div>
+
+      <!-- Visualizer controls -->
+      <button type="button" class="btn btn-run"   id="btnRun"   onclick="startVisualizer()">&#9654; Visualize</button>
+      <button type="button" class="btn btn-pause" id="btnPause" style="display:none" onclick="togglePause()">&#9208; Pause</button>
+      <button type="button" class="btn btn-back"  id="btnBack"  style="display:none" disabled onclick="stepBack()">&#9194; Step Back</button>
+      <button type="button" class="btn btn-step"  id="btnStep"  style="display:none" disabled onclick="stepForward()">&#9197; Step</button>
+      <button type="button" class="btn btn-stop"  id="btnStop"  style="display:none" onclick="stopVisualizer()">&#9632; Stop</button>
+      <button type="button" class="btn btn-reset" id="btnReset" style="display:none" onclick="resetAll()">&#8635; Reset</button>
+
+      <div class="vsep"></div>
+
+      <!-- Sort & Download -->
+      <button type="button" class="btn btn-sort" id="btnSort" onclick="doSort()">&#8801; Sort</button>
+      <button type="button" class="btn-dl-sort"  id="btnDlSort" onclick="downloadSorted()">&#8595; Tải file đã sort</button>
+
+    </div>
+  </header>
+
+  <div class="stat-bar">
+    <div class="stat-card">
+      <div class="stat-lbl">Output</div>
+      <div class="stat-val g" id="sOut">—</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="col-left">
+
+      <div class="panel">
+        <div class="panel-hdr"><span class="dot cy"></span><span class="panel-ttl">Phase 1 — Disk: Initial Runs</span></div>
+        <div id="diskArea" class="runs-grid"><div class="placeholder">Upload file .bin hoặc nhấn Demo</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hdr"><span class="dot am"></span><span class="panel-ttl">Phase 2 — RAM: Input Buffers</span></div>
+        <div id="bufferArea" class="buffers-area"><div class="placeholder">Bộ đệm chưa khởi tạo</div></div>
+      </div>
+
+
+      <div class="panel">
+        <div class="panel-hdr"><span class="dot vi"></span><span class="panel-ttl">MinHeap Activity</span><span id="heapChipInfo" class="panel-info"></span></div>
+        <div id="heapArea" class="heap-area"><span class="heap-empty-msg">Heap trống</span></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="dot gr"></span><span class="panel-ttl">Phase 3 — Sorted Output Stream</span>
+          <a id="dlBtn" href="#" class="btn-dl" style="display:none">&#8595; Tải kết quả</a>
+        </div>
+        <div id="outputArea" class="output-area"></div>
+        <div class="progress-wrap"><div id="progressBar" class="progress-bar"></div></div>
+      </div>
+
+    </div>
+
+    <div class="col-right">
+
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="dot vi"></span><span class="panel-ttl">Phase 2 — RAM: Min-Heap</span>
+          <span id="heapInfo" class="panel-info"></span>
+        </div>
+        <div id="heapContainer" class="heap-container">
+          <svg id="heapSvg" class="heap-svg"></svg>
+          <div id="heapNodes" class="heap-nodes"><div class="placeholder" id="heapEmpty">Heap trống</div></div>
+        </div>
+      </div>
+
+      <div class="panel panel-log">
+        <div class="panel-hdr">
+          <span class="dot gy"></span><span class="panel-ttl">Event Log</span>
+          <button class="btn-clr" onclick="clearLog()">CLR</button>
+        </div>
+        <div id="logBox" class="log-box"><div class="placeholder">Chờ dữ liệu...</div></div>
+        <div id="logPos" class="log-pos"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── State ── */
+let _state = 'idle';
+let _stopFlag = false;
+let _stepPending = false;
+
+let _totalItems = 0;
+let _outCount   = 0;
+let _allLogs    = [];
+let _logIndex   = 0;
+
+const heapMap = new Map();
+const NODE_SIZE = 48, NODE_FONT = 14, LEVEL_HEIGHT = 88;
+
+/* pending outputs: các giá trị đã pop từ heap nhưng chưa được flush (chỉ render khi OUTPUT_FLUSH) */
+let _pendingOutputs = [];
+let _lastPassNum = 0;
+let _heapState = [];
+
+/* ── Helpers ── */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const $     = id  => document.getElementById(id);
+const fmt   = v   => {
+  if (v == null) return '?';
+  const n = Number(v);
+  return isNaN(n) ? String(v) : Number.isInteger(n) ? String(n) : n.toFixed(1);
+};
+
+$('speedSlider').addEventListener('input', () => {
+  $('speedVal').textContent = $('speedSlider').value + 'x';
+});
+
+function getDelay() {
+  const v = parseInt($('speedSlider').value);
+  if (v >= 10) return 0;  if (v >= 9) return 20;  if (v >= 8) return 60;
+  if (v >= 6)  return 180; if (v >= 4) return 400; if (v >= 3) return 650;
+  return 950;
+}
+
+function bumpStat(id, val) {
+  const el = $(id);
+  if (el) { const s = String(val); if (el.textContent !== s) el.textContent = s; }
+}
+function showOverlay(msg) { $('loadingText').textContent = msg; $('loadingOverlay').classList.add('show'); }
+function hideOverlay()    { $('loadingOverlay').classList.remove('show'); }
+
+/* ── Toast ── */
+let _toastTimer = null;
+function showToast(msg) {
+  const el = $('toast');
+  $('toastMsg').textContent = msg || 'Vui lòng upload file .bin hoặc bấm Demo trước khi chạy.';
+  el.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+/* ── Guard ── */
+function hasFile() { return !!$('fileInput').files[0]; }
+
+/* ── Trạng thái badge ── */
+function setStatus(label, mode) {
+  $('statusText').textContent = label;
+  const badge = $('statusBadge'), dot = $('statusDot');
+  badge.className = 'status-badge' + (mode ? ' ' + mode : '');
+  dot.className   = 'status-dot'   + (mode === 'running' ? ' pulse' : '');
+}
+
+/* ── UI theo state ── */
+function applyUI() {
+  const s = _state;
+  const show = (id, v) => { $(id).style.display = v ? 'flex' : 'none'; };
+  const en   = (id, v) => { $(id).disabled = !v; };
+
+  if (s === 'idle') {
+    show('btnRun',   true);  en('btnRun', true);
+    show('btnPause', false);
+    show('btnBack',  false);
+    show('btnStep',  false);
+    show('btnStop',  false);
+    show('btnReset', false);
+    setStatus('Idle', '');
+  }
+  else if (s === 'running') {
+    show('btnRun',   false);
+    show('btnPause', true);  $('btnPause').textContent = '⏸ Pause'; $('btnPause').classList.remove('is-paused');
+    show('btnBack',  true);  en('btnBack', false);
+    show('btnStep',  true);  en('btnStep', false);
+    show('btnStop',  true);
+    show('btnReset', false);
+    setStatus('Running...', 'running');
+  }
+  else if (s === 'paused') {
+    show('btnRun',   false);
+    show('btnPause', true);  $('btnPause').textContent = '▶ Resume'; $('btnPause').classList.add('is-paused');
+    show('btnBack',  true);  en('btnBack', _logIndex > 0);
+    show('btnStep',  true);  en('btnStep', _logIndex < _allLogs.length);
+    show('btnStop',  true);
+    show('btnReset', false);
+    setStatus('Paused', 'paused');
+  }
+  else if (s === 'finished') {
+    show('btnRun',   true);  en('btnRun', false);
+    show('btnPause', false);
+    show('btnBack',  true);  en('btnBack', _logIndex > 0);
+    show('btnStep',  true);  en('btnStep', _logIndex < _allLogs.length);
+    show('btnStop',  false);
+    show('btnReset', true);
+    setStatus('Finished', 'finished');
+  }
+
+  if (_allLogs.length > 0) {
+    $('logPos').textContent = 'Bước ' + _logIndex + ' / ' + _allLogs.length;
+  } else {
+    $('logPos').textContent = '';
+  }
+}
+
+/* ── Pause / Step ── */
+function togglePause() {
+  if (_state === 'running') {
+    _state = 'paused'; applyUI();
+  } else if (_state === 'paused') {
+    _state = 'running'; applyUI();
+    _stepPending = false;
+  }
+}
+
+function stepForward() {
+  if (_state !== 'paused' && _state !== 'finished') return;
+  if (_logIndex >= _allLogs.length) return;
+  _stepPending = true;
+}
+
+/* ── Step back ── */
+function stepBack() {
+  if (_state !== 'paused' && _state !== 'finished') return;
+  if (_logIndex <= 0) return;
+  replayUpTo(_logIndex - 1);
+  applyUI();
+}
+
+/* ── Replay từ đầu đến targetIndex (không animation) ── */
+function resetVisualOnly() {
+  _outCount = 0;
+  _pendingOutputs = [];
+  _heapState = [];
+  heapMap.forEach(el => el.remove()); heapMap.clear();
+  $('diskArea').innerHTML   = '<div class="placeholder">Upload file .bin hoặc nhấn Demo</div>';
+  $('bufferArea').innerHTML = '<div class="placeholder">Bộ đệm chưa khởi tạo</div>';
+  $('outputArea').innerHTML = '';
+  $('logBox').innerHTML     = '';
+  $('progressBar').style.width = '0%';
+  $('heapNodes').innerHTML  = '<div class="placeholder" id="heapEmpty">Heap trống</div>';
+  $('heapSvg').innerHTML    = '';
+  $('heapInfo').textContent = '';
+  $('dlBtn').style.display  = 'none';
+  $('sOut').textContent     = '—';
+}
+
+function replayUpTo(targetIndex) {
+  resetVisualOnly();
+  _logIndex = 0;
+  _pendingOutputs = [];
+  for (let i = 0; i < targetIndex; i++) {
+    const log = _allLogs[i];
+    applyEvent(log);
+    appendLogEntry(log);
+    _logIndex++;
+  }
+  bumpStat('sOut', _outCount);
+}
+
+/* ── Full reset ── */
+function resetAll() {
+  _state = 'idle'; _stopFlag = false; _stepPending = false;
+  _totalItems = 0; _outCount = 0; _allLogs = []; _logIndex = 0;
+  resetVisualOnly();
+  applyUI();
+}
+
+/* ── Demo generator ── */
+function generateDemo() {
+  const n = 100;
+  const buf = new ArrayBuffer(n * 8);
+  const view = new DataView(buf);
+  for (let i = 0; i < n; i++)
+    view.setFloat64(i * 8, parseFloat((Math.random() * 200 - 100).toFixed(1)), true);
+  const file = new File([buf], 'demo.bin');
+  const dt = new DataTransfer(); dt.items.add(file);
+  $('fileInput').files = dt.files;
+  $('fileLabel').textContent = 'demo.bin (' + n + ' số)';
+}
+
+/* ── Sort backend (unchanged) ── */
+async function doSort() {
+  if (!hasFile()) { showToast(); return; }
+  $('btnDlSort').classList.remove('visible');
+  showOverlay('Sorting...');
+  const fd = new FormData();
+  fd.append('file', $('fileInput').files[0]);
+  fd.append('block_size', $('blockSize').value);
+  fd.append('k_way', $('kWay').value);
+  try {
+    const res = await fetch('/sort', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await res.json();
+    $('btnDlSort').classList.add('visible');
+  } catch(e) {
+    console.error('Sort failed:', e);
+    showToast('Sort thất bại. Kiểm tra console để biết chi tiết.');
+  } finally { hideOverlay(); }
+}
+
+function downloadSorted() {
+  const a = document.createElement('a');
+  a.href = '/download'; a.download = 'output_sorted.bin';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* ── Client-side simulation (fallback) — updated to emit flushed arrays ── */
+function simulateLocally(numbers, blockSize, kWay) {
+  const logs = [];
+  let step = 0, diskReads = 0;
+  const runs = [];
+
+  for (let i = 0; i < numbers.length; i += blockSize) {
+    const chunk = numbers.slice(i, i + blockSize).sort((a, b) => a - b);
+    const runId = runs.length;
+    runs.push([...chunk]);
+    diskReads += chunk.length;
+    logs.push({ type:'RUN_CREATED', run_id:runId, values:chunk, disk_reads:diskReads, step:++step,
+      msg:'Run ' + runId + ' tạo xong (' + chunk.length + ' phần tử)' });
+  }
+
+  let currentRuns = runs.map((r, i) => ({ id:i, data:[...r] }));
+  let passNum = 1;
+
+  while (currentRuns.length > 1) {
+    logs.push({ type:'PASS_START', pass_num:passNum, step:++step, disk_reads:diskReads,
+      msg:'Lượt ' + passNum + ' — gộp ' + currentRuns.length + ' run với K=' + kWay });
+    const nextRuns = [];
+
+    for (let gi = 0; gi < currentRuns.length; gi += kWay) {
+      const group   = currentRuns.slice(gi, gi + kWay);
+      const bufSize = Math.max(1, Math.floor(blockSize / kWay));
+      const buffers = group.map(r => {
+        const block = r.data.splice(0, bufSize); diskReads += block.length;
+        return { runId:r.id, buf:[...block], src:r };
+      });
+
+      logs.push({ type:'BUFFER_LOAD', run_id:group[0].id,
+        block:buffers[0].buf.slice(), buffers:buffers.map(b => [...b.buf]), disk_reads:diskReads, step:++step,
+        msg:'Nạp bộ đệm nhóm (run ' + group.map(r => r.id).join(',') + ')' });
+
+      const heap = [];
+      let mergedOutput = [];
+      const heapPush = (val, bufIdx) => { heap.push({val, bufIdx}); heap.sort((a,b) => a.val - b.val); };
+      const heapPop  = () => heap.shift();
+
+      for (let bi = 0; bi < buffers.length; bi++) {
+        if (buffers[bi].buf.length > 0) {
+          const v = buffers[bi].buf.shift();
+          heapPush(v, bi);
+          logs.push({ type:'HEAP_PUSH', value:v, heap_state:heap.map(h => h.val),
+            buffers:buffers.map(b => [...b.buf]), run_id:bi, disk_reads:diskReads, step:++step,
+            msg:'Đẩy ' + fmt(v) + ' từ bộ đệm ' + bi + ' → heap' });
+        }
+      }
+
+      while (heap.length > 0) {
+        const { val, bufIdx } = heapPop();
+        logs.push({ type:'HEAP_POP', value:val, heap_state:heap.map(h => h.val),
+          disk_reads:diskReads, step:++step, msg:'Lấy ' + fmt(val) + ' → output buffer' });
+
+        mergedOutput.push(val);
+
+        if (buffers[bufIdx].buf.length === 0 && buffers[bufIdx].src.data.length > 0) {
+          const refill = buffers[bufIdx].src.data.splice(0, bufSize);
+          diskReads += refill.length; buffers[bufIdx].buf = [...refill];
+          logs.push({ type:'BUFFER_LOAD', run_id:buffers[bufIdx].runId, block:refill,
+            buffers:buffers.map(bf => [...bf.buf]), disk_reads:diskReads, step:++step,
+            msg:'Nạp lại bộ đệm ' + bufIdx + ' từ run ' + buffers[bufIdx].runId });
+        }
+        if (buffers[bufIdx].buf.length > 0) {
+          const nv = buffers[bufIdx].buf.shift();
+          heapPush(nv, bufIdx);
+          logs.push({ type:'HEAP_PUSH', value:nv, heap_state:heap.map(h => h.val),
+            buffers:buffers.map(bf => [...bf.buf]), run_id:bufIdx, disk_reads:diskReads, step:++step,
+            msg:'Đẩy ' + fmt(nv) + ' từ bộ đệm ' + bufIdx + ' → heap' });
+        }
+
+        if (mergedOutput.length >= blockSize) {
+          const flushed = mergedOutput.slice();
+          logs.push({ type:'OUTPUT_FLUSH', pass_num:passNum, flushed:flushed, disk_reads:diskReads, step:++step,
+            msg:'Xả bộ đệm output (' + flushed.length + ' giá trị)' });
+          mergedOutput = [];
+        }
+      }
+
+      if (mergedOutput.length) {
+        const flushed = mergedOutput.slice();
+        logs.push({ type:'OUTPUT_FLUSH', pass_num:passNum, flushed:flushed, disk_reads:diskReads, step:++step,
+          msg:'Xả bộ đệm output cuối (' + flushed.length + ' giá trị)' });
+      }
+
+      const newRunId = 1000 + passNum * 100 + gi;
+      nextRuns.push({ id:newRunId, data:[] });
+      logs.push({ type:'RUN_CREATED', run_id:newRunId, values:[], disk_reads:diskReads, step:++step,
+        msg:'Run gộp ' + newRunId + ' tạo xong' });
+    }
+
+    currentRuns = nextRuns; passNum++;
+  }
+
+  logs.push({ type:'SORT_COMPLETE', pass_num:passNum - 1, total_elements:numbers.length, disk_reads:diskReads, step:++step,
+    msg:'✓ Đã hoàn thành — ' + numbers.length + ' phần tử, ' + diskReads + ' lần đọc đĩa' });
+  return logs;
+}
+
+/* ── Visualizer (main loop) ── */
+async function startVisualizer() {
+  if (_state === 'running' || _state === 'paused') return;
+  if (!hasFile()) { showToast(); return; }
+
+  showOverlay('Analysing file...');
+  const blockSize = Math.max(1, parseInt($('blockSize').value) || 15);
+  const kWay      = Math.max(2, parseInt($('kWay').value)      || 3);
+  let logs;
+
+  try {
+    const fd = new FormData();
+    fd.append('file', $('fileInput').files[0]); fd.append('block_size', blockSize); fd.append('k_way', kWay);
+    const res = await fetch('/simulate', { method:'POST', body:fd });
+    if (res.ok) { const d = await res.json(); logs = d.logs; }
+  } catch(e) {}
+
+  if (!logs || !logs.length) {
+    try {
+      const ab = await $('fileInput').files[0].arrayBuffer();
+      const dv = new DataView(ab), count = Math.floor(ab.byteLength / 8), nums = [];
+      for (let i = 0; i < count; i++) nums.push(parseFloat(dv.getFloat64(i * 8, true).toFixed(1)));
+      logs = simulateLocally(nums, blockSize, kWay);
+    } catch(e) { hideOverlay(); return; }
+  }
+
+  hideOverlay();
+  if (!logs || !logs.length) return;
+
+  _allLogs    = logs;
+  _logIndex   = 0;
+  _state      = 'running';
+  _stopFlag   = false;
+  _stepPending = false;
+  _totalItems  = (logs.find(l => l.type === 'SORT_COMPLETE') || {}).total_elements || 0;
+  const _completeLog = logs.find(l => l.type === 'SORT_COMPLETE');
+  if (_completeLog && _completeLog.pass_num != null) {
+    _lastPassNum = _completeLog.pass_num;
+  } else {
+    // fallback: find highest pass_num in any OUTPUT_FLUSH
+    _lastPassNum = Math.max(0, ...logs.filter(l => l.type === 'OUTPUT_FLUSH' && l.pass_num != null).map(l => l.pass_num));
+  }
+
+  resetVisualOnly();
+  applyUI();
+
+  while (_logIndex < _allLogs.length) {
+    if (_stopFlag) break;
+
+    if (_state === 'paused' && !_stepPending) {
+      await sleep(30); continue;
+    }
+
+    const wasStep = _stepPending; _stepPending = false;
+
+    const log = _allLogs[_logIndex];
+    applyEvent(log);
+    appendLogEntry(log);
+    bumpStat('sOut', _outCount);
+    _logIndex++;
+    applyUI();
+
+    if (log.type === 'SORT_COMPLETE') break;
+
+    if (wasStep) {
+      _state = 'paused'; applyUI(); continue;
+    }
+
+    const d = getDelay(); if (d > 0) await sleep(d);
+  }
+
+  if (!_stopFlag) {
+    _state = 'finished';
+  } else {
+    _state = 'idle';
+  }
+  applyUI();
+}
+
+function stopVisualizer() {
+  _stopFlag = true;
+  if (_state === 'paused') _state = 'running';
+}
+
+/* ── Event dispatcher ── */
+function applyEvent(log) {
+  switch (log.type) {
+    case 'RUN_CREATED':   onRunCreated(log);   break;
+    case 'BUFFER_LOAD':   onBufferLoad(log);   break;
+    case 'HEAP_PUSH':     onHeapPush(log);     break;
+    case 'HEAP_POP':      onHeapPop(log);      break;
+    case 'OUTPUT_FLUSH':  onOutputFlush(log);  break;
+    case 'SORT_COMPLETE': onSortComplete(log); break;
+  }
+}
+
+/* ── Log panel ── */
+function appendLogEntry(log) {
+  const box = $('logBox');
+  box.querySelector('.placeholder')?.remove();
+  const d = document.createElement('div');
+  d.className = 'log-entry ' + (log.type || '');
+  d.innerHTML = '<span class="log-badge">' + (log.type || '') + '</span>' + (log.msg || '');
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+function clearLog() { $('logBox').innerHTML = ''; }
+
+/* ── Phase handlers ── */
+function onRunCreated(log) {
+  const area = $('diskArea');
+  area.querySelector('.placeholder')?.remove();
+  let card = $('rc-' + log.run_id);
+  if (!card) {
+    card = document.createElement('div');
+    card.className = 'run-card'; card.id = 'rc-' + log.run_id;
+    area.appendChild(card);
+  }
+  const chips = (log.values || []).map(v =>
+    '<span class="run-chip" data-val="' + v + '">' + fmt(v) + '</span>').join('');
+  card.innerHTML = '<div class="run-lbl">RUN ' + log.run_id + '</div><div class="run-chips">' + chips + '</div>';
+}
+
+function onBufferLoad(log) {
+  const { run_id, block = [], buffers = [] } = log;
+  document.querySelectorAll('.run-card').forEach(c => c.classList.remove('active'));
+  const card = $('rc-' + run_id);
+  if (card) {
+    card.classList.add('active');
+    for (const val of block) {
+      const chip = card.querySelector('.run-chip:not(.consumed)[data-val="' + val + '"]');
+      if (chip) chip.classList.add('consumed');
+    }
+  }
+  renderBuffers(buffers, run_id);
+}
+
+function onHeapPush(log) {
+  const { value, heap_state = [], buffers, run_id } = log;
+  if (value != null) { _heapState.push(value); renderHeap(); }
+  if (buffers) renderBuffers(buffers, run_id);
+  updateHeap(heap_state);
+}
+
+/* onHeapPop: push vào pending, KHÔNG render final output */
+function onHeapPop(log) {
+  updateHeap(log.heap_state || []);
+  if (log.value != null) {
+    const idx = _heapState.indexOf(log.value);
+    if (idx !== -1) _heapState.splice(idx, 1);
+    renderHeap();
+    _pendingOutputs.push(log.value);
+    document.querySelector('.buf-cell:not(.consumed)[data-val="' + log.value + '"]')?.classList.add('consumed');
+  }
+}
+
+/* OUTPUT_FLUSH: chỉ render pass cuối, bỏ qua pass trung gian */
+function onOutputFlush(log) {
+  if (log.pass_num != null && log.pass_num !== _lastPassNum) {
+    _pendingOutputs = [];
+    return;
+  }
+  const flushed = (Array.isArray(log.flushed) && log.flushed.length) ? log.flushed.slice() : _pendingOutputs.slice();
+  if (flushed && flushed.length) {
+    for (const v of flushed) addOutput(v);
+  }
+  _pendingOutputs = [];
+  const a = $('outputArea');
+  a.style.background = 'rgba(248,113,113,0.05)';
+  setTimeout(() => a.style.background = '', 300);
+}
+
+function onSortComplete(log) {
+  if (_pendingOutputs.length) {
+    for (const v of _pendingOutputs) addOutput(v);
+    _pendingOutputs = [];
+  }
+  $('dlBtn').style.display = 'inline-flex';
+  bumpStat('sOut', _outCount);
+}
+
+/* ── Render helpers ── */
+function renderBuffers(buffers, activeRun = -1) {
+  if (!buffers || !buffers.length) return;
+  const area = $('bufferArea');
+  area.querySelector('.placeholder')?.remove();
+  area.innerHTML = buffers.map((col, i) => {
+    const cells = col.length
+      ? col.map(v => '<div class="buf-cell" data-val="' + v + '">' + fmt(v) + '</div>').join('')
+      : '<div class="buf-empty">—</div>';
+    return '<div class="buf-col' + (i === activeRun ? ' active-buf' : '') + '" id="buf-col-' + i + '">'
+         + '<div class="buf-col-lbl">BUF ' + i + '</div>'
+         + '<div class="buf-cells">' + cells + '</div></div>';
+  }).join('');
+}
+
+function addOutput(val) {
+  const chip = document.createElement('span');
+  chip.className = 'out-chip'; chip.textContent = fmt(val);
+  $('outputArea').appendChild(chip);
+  _outCount++; bumpStat('sOut', _outCount);
+  if (_totalItems > 0)
+    $('progressBar').style.width = Math.min(100, _outCount / _totalItems * 100) + '%';
+}
+
+
+/* MinHeap chip renderer */
+function renderHeap() {
+  const area = $('heapArea');
+  if (!area) return;
+  if (!_heapState.length) {
+    area.innerHTML = '<span class="heap-empty-msg">Heap trống</span>';
+    $('heapChipInfo').textContent = '';
+    return;
+  }
+  const sorted = [..._heapState].sort((a, b) => a - b);
+  $('heapChipInfo').textContent = 'size: ' + sorted.length;
+  area.innerHTML = sorted.map((v, i) =>
+    '<span class="heap-chip' + (i === 0 ? ' heap-min' : '') + '">' + fmt(v) + '</span>'
+  ).join('');
+}
+
+/* ── Heap rendering ── */
+function calcHeapPos(arr, W) {
+  return arr.map((_, i) => {
+    const level = Math.floor(Math.log2(i + 1));
+    const nodesInLevel = Math.pow(2, level);
+    const hSpacing = W / (nodesInLevel + 1);
+    return { x: hSpacing * (i - (nodesInLevel - 1) + 1), y: level * LEVEL_HEIGHT + 40 };
+  });
+}
+
+function heapNodeCls(i, total) {
+  if (i === 0) return 'hn-root';
+  const maxD = Math.floor(Math.log2(total)), d = Math.floor(Math.log2(i + 1));
+  return d >= maxD ? 'hn-leaf' : 'hn-inner';
+}
+
+function updateHeap(heapArr) {
+  const container = $('heapNodes'), svg = $('heapSvg');
+  $('heapEmpty')?.remove();
+  $('heapInfo').textContent = heapArr.length ? 'size: ' + heapArr.length : '';
+
+  if (!heapArr.length) {
+    heapMap.forEach(el => el.remove()); heapMap.clear();
+    svg.innerHTML = '';
+    container.innerHTML = '<div class="placeholder" id="heapEmpty">Heap trống</div>';
+    return;
+  }
+
+  const W         = container.offsetWidth || 340;
+  const positions = calcHeapPos(heapArr, W);
+  const newKeySet = new Set(heapArr.map((v, i) => i + ':' + v));
+
+  const toDelete = [];
+  heapMap.forEach((_, key) => { if (!newKeySet.has(key)) toDelete.push(key); });
+  toDelete.forEach(key => { heapMap.get(key).remove(); heapMap.delete(key); });
+
+  heapArr.forEach((val, i) => {
+    const key  = i + ':' + val;
+    const ncls = 'heap-node ' + heapNodeCls(i, heapArr.length);
+    const pos  = positions[i];
+    if (heapMap.has(key)) {
+      const el = heapMap.get(key);
+      el.style.left = (pos.x - NODE_SIZE / 2) + 'px';
+      el.style.top  = (pos.y - NODE_SIZE / 2) + 'px';
+      el.className  = ncls;
+    } else {
+      const el = document.createElement('div');
+      el.className = ncls;
+      el.style.cssText = 'left:' + (pos.x - NODE_SIZE/2) + 'px;top:' + (pos.y - NODE_SIZE/2) + 'px;font-size:' + NODE_FONT + 'px;';
+      el.textContent = fmt(val);
+      container.appendChild(el); heapMap.set(key, el);
+      el.classList.add('node-highlight');
+      setTimeout(() => el.classList.remove('node-highlight'), 900);
+    }
+  });
+
+  svg.innerHTML = '';
+  positions.forEach((p, i) => {
+    [2*i+1, 2*i+2].forEach(ci => {
+      if (ci < positions.length) {
+        const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        ln.setAttribute('x1', p.x); ln.setAttribute('y1', p.y);
+        ln.setAttribute('x2', positions[ci].x); ln.setAttribute('y2', positions[ci].y);
+        ln.setAttribute('stroke', '#2e3446'); ln.setAttribute('stroke-width', '1.5');
+        svg.appendChild(ln);
+      }
+    });
+  });
+}
+
+function onFileChange(input) {
+  if (input.files[0]) $('fileLabel').textContent = input.files[0].name;
+}
+
+/* init */
+applyUI();
+</script>
+</body>
+</html>
