@@ -21,23 +21,23 @@ class ExternalSortSimulator:
         self.format = '<d'
         self.size_of_double = 8
 
-        # Tạo thư mục tạm để chứa các file run (chunk)
+        # Tạo thư mục tạm chứa các file runs
         self.temp_dir = tempfile.mkdtemp(prefix="ext_sort_real_")
         
         self.logs: List[Dict[str, Any]] = []
-        # Bây giờ disk_runs sẽ chứa ĐƯỜNG DẪN file (str) thay vì mảng dữ liệu
+        # List lưu đường dẫn file runs trên đĩa
         self.disk_runs: List[str] = [] 
         self.pass_stats: List[Dict[str, Any]] = []
         self._total_disk_reads = 0
         self._total_disk_writes = 0
 
     def cleanup(self):
-        """Xóa thư mục tạm sau khi chạy xong"""
+        """Xóa thư mục tạm và file con"""
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _log(self, type: str, **kwargs):
-        # Hàm log giữ nguyên để tương thích frontend
+        # Ghi log sự kiện cho Frontend visualization
         entry = {
             "type": type,
             "step": len(self.logs) + 1,
@@ -58,7 +58,7 @@ class ExternalSortSimulator:
         self.logs.append(entry)
 
     def _write_run_to_disk(self, data: List[float], run_id: int, pass_num: int) -> str:
-        """Ghi một mảng số xuống file vật lý"""
+        """Ghi list float xuống file binary"""
         filename = os.path.join(self.temp_dir, f"pass{pass_num}_run{run_id}.bin")
         with open(filename, 'wb') as f:
             for num in data:
@@ -67,18 +67,19 @@ class ExternalSortSimulator:
         return filename
 
     def _read_block_from_file(self, f) -> List[float]:
-        """Đọc một block từ file đang mở"""
+        """Đọc block binary và unpack thành list float"""
         raw = f.read(self.size_of_double * self.block_size)
         if not raw:
             return []
         
         count = len(raw) // self.size_of_double
-        # Unpack binary data thành list float
+        # Convert binary sang list float
         vals = [round(x[0], 6) for x in struct.iter_unpack(self.format, raw)]
         self._total_disk_reads += count
         return vals
 
     def _phase1(self):
+        """Phase 1: Chia chunk, sort RAM, ghi đĩa"""
         if not os.path.exists(self.input_path):
             raise FileNotFoundError(f"Input file not found: {self.input_path}")
 
@@ -94,14 +95,14 @@ class ExternalSortSimulator:
                     chunk.extend(leftover[:take])
                     leftover = leftover[take:]
 
-                # Đọc cho đến khi đầy chunk size
+                # Đọc source file đến khi đủ chunk_size
                 while len(chunk) < self.chunk_size:
-                    # Đọc từ file gốc
+                    # Disk Read block
                     vals = self._read_block_from_file(f)
                     if not vals:
                         break
 
-                    # Log việc đọc buffer (Frontend cần cái này)
+                    # Log nạp buffer
                     self._log(
                         "BUFFER_LOAD",
                         pass_num=0,
@@ -123,7 +124,7 @@ class ExternalSortSimulator:
                 # Sort trong RAM
                 chunk.sort()
                 
-                # Ghi xuống đĩa thật (Real Disk Write)
+                # Ghi run xuống đĩa
                 run_path = self._write_run_to_disk(chunk, run_idx, 0)
                 self.disk_runs.append(run_path)
 
@@ -131,7 +132,7 @@ class ExternalSortSimulator:
                     "RUN_CREATED",
                     pass_num=0,
                     run_id=run_idx,
-                    values=list(chunk), # Frontend cần giá trị để hiển thị
+                    values=list(chunk), # Snapshot data cho UI
                     msg=f"Phase 1 · Run {run_idx} created ({len(chunk)} items) and written to disk"
                 )
 
@@ -147,22 +148,23 @@ class ExternalSortSimulator:
         })
 
     def _merge_group(self, group_paths: List[str], pass_num: int, group_idx: int) -> str:
-        # Mở tất cả các file trong nhóm (Real Disk Read)
+        """Merge k runs dùng Min-Heap"""
+        # Mở file descriptors nhóm k-way
         files = [open(p, 'rb') for p in group_paths]
         num = len(files)
         
         input_buffers: List[List[float]] = [[] for _ in range(num)]
         min_heap: List[tuple] = []
         
-        # Buffer đầu ra trước khi ghi xuống đĩa
+        # Output buffer (giảm I/O writes)
         output_buffer: List[float] = []
         
-        # Tên file kết quả của nhóm này
-        new_run_id = group_idx * self.k_way # ID định danh ảo cho log
+        # Path file kết quả nhóm
+        new_run_id = group_idx * self.k_way
         temp_out_path = os.path.join(self.temp_dir, f"pass{pass_num}_group{group_idx}.bin")
         out_f = open(temp_out_path, 'wb')
 
-        # 1. Fill buffers lần đầu
+        # 1. Init: Nạp block đầu vào buffers
         for i in range(num):
             block = self._read_block_from_file(files[i])
             if block:
@@ -172,7 +174,7 @@ class ExternalSortSimulator:
                           heap_state=[h[0] for h in min_heap],
                           msg=f"Pass {pass_num} · Load block into Buffer[{i}]")
 
-        # 2. Đẩy vào Heap
+        # 2. Init Heap: Push phần tử đầu mỗi buffer
         for i in range(num):
             if input_buffers[i]:
                 val = input_buffers[i].pop(0)
@@ -181,7 +183,7 @@ class ExternalSortSimulator:
                           buffers=[list(b) for b in input_buffers], heap_state=[h[0] for h in min_heap],
                           msg=f"Pass {pass_num} · Push {val} from Buffer[{i}]")
 
-        # 3. Vòng lặp Merge
+        # 3. Loop Merge
         while min_heap:
             val, local_idx = heapq.heappop(min_heap)
 
@@ -191,7 +193,7 @@ class ExternalSortSimulator:
 
             output_buffer.append(val)
 
-            # Flush output buffer xuống đĩa thật nếu đầy
+            # Output đầy -> Ghi đĩa
             if len(output_buffer) >= self.block_size:
                 flushed = list(output_buffer)
                 for v in flushed:
@@ -203,7 +205,7 @@ class ExternalSortSimulator:
                           is_final_flush=False, msg=f"Pass {pass_num} · Flush {len(flushed)} items to disk")
                 output_buffer = []
 
-            # Refill input buffer nếu rỗng
+            # Input rỗng -> Refill từ đĩa
             if not input_buffers[local_idx]:
                 block = self._read_block_from_file(files[local_idx])
                 if block:
@@ -213,7 +215,7 @@ class ExternalSortSimulator:
                               heap_state=[h[0] for h in min_heap],
                               msg=f"Pass {pass_num} · Refill Buffer[{local_idx}]")
 
-            # Push giá trị tiếp theo vào heap
+            # Push phần tử kế tiếp vào heap
             if input_buffers[local_idx]:
                 nxt = input_buffers[local_idx].pop(0)
                 heapq.heappush(min_heap, (nxt, local_idx))
@@ -221,7 +223,7 @@ class ExternalSortSimulator:
                           buffers=[list(b) for b in input_buffers], heap_state=[h[0] for h in min_heap],
                           msg=f"Pass {pass_num} · Push {nxt}")
 
-        # Final flush
+        # Flush output còn lại
         if output_buffer:
             flushed = list(output_buffer)
             for v in flushed:
@@ -232,7 +234,7 @@ class ExternalSortSimulator:
                       buffers=[list(b) for b in input_buffers], heap_state=[], is_final_flush=True,
                       msg=f"Pass {pass_num} · Final flush {len(flushed)} items")
 
-        # Đóng file
+        # Đóng file handles
         out_f.close()
         for f in files:
             f.close()
@@ -240,17 +242,16 @@ class ExternalSortSimulator:
         return temp_out_path
 
     def _phase2(self):
-        # self.disk_runs bây giờ là List[str] (đường dẫn file)
+        """Phase 2: K-way Merge đến khi còn 1 file"""
         current_runs = list(self.disk_runs)
         pass_num = 1
 
-        # Trường hợp chỉ có 1 run (đã sort xong ngay phase 1)
+        # Optimize: 1 run -> Copy ra output
         if len(current_runs) <= 1:
             if current_runs:
-                # Copy file tạm ra file output chính thức
                 shutil.copy(current_runs[0], self.output_path)
                 
-            self._log("SORT_COMPLETE", pass_num=0, total_elements=0, # total ko quan trọng ở đây
+            self._log("SORT_COMPLETE", pass_num=0, total_elements=0,
                       total_disk_reads=self._total_disk_reads, total_disk_writes=self._total_disk_writes,
                       msg="Sort complete (single run)")
             return
@@ -266,14 +267,14 @@ class ExternalSortSimulator:
             next_runs_paths: List[str] = []
 
             for g in range(total_groups):
-                # Lấy danh sách đường dẫn file cho nhóm này
+                # Xác định nhóm k-way merge
                 group_paths = current_runs[g * self.k_way: (g + 1) * self.k_way]
                 
-                # Merge và nhận về đường dẫn file kết quả mới
+                # Merge và lấy path file mới
                 merged_path = self._merge_group(group_paths, pass_num, g)
                 next_runs_paths.append(merged_path)
 
-                # Optional: Xóa các file run cũ để tiết kiệm đĩa
+                # Optional: Xóa runs cũ để tiết kiệm đĩa
                 # for p in group_paths: os.remove(p)
 
                 self._log("PASS_GROUP_DONE", pass_num=pass_num, group_idx=g,
@@ -291,10 +292,10 @@ class ExternalSortSimulator:
             current_runs = next_runs_paths
             pass_num += 1
 
-        # Copy file kết quả cuối cùng ra output_path
+        # Move file cuối ra output path
         if current_runs:
             shutil.move(current_runs[0], self.output_path)
-            # Cần tính tổng số phần tử để log
+            # Tính size file cho log
             final_size = os.path.getsize(self.output_path) // self.size_of_double
         else:
             final_size = 0
@@ -305,6 +306,7 @@ class ExternalSortSimulator:
                   msg=f"✓ Sort complete · {final_size} items")
 
     def run_simulation(self) -> Dict[str, Any]:
+        """Main execution flow"""
         self.logs = []
         self.disk_runs = []
         self.pass_stats = []
@@ -315,11 +317,11 @@ class ExternalSortSimulator:
             self._phase1()
             self._phase2()
         finally:
-            self.cleanup() # Dọn dẹp file tạm
+            self.cleanup() 
 
         summary = {
             "total_steps": len(self.logs),
-            "total_runs": 0, # Ko cần thiết cho summary backend
+            "total_runs": 0, 
             "total_disk_reads": self._total_disk_reads,
             "total_disk_writes": self._total_disk_writes,
             "k_way": self.k_way,
