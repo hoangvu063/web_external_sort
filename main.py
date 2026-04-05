@@ -18,10 +18,11 @@ app.add_middleware(
 # Tự động xác định đường dẫn thư mục hiện tại
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
+#TEMP_DIR = os.path.join(BASE_DIR, "temp_files")
 
-os.makedirs(TEMP_DIR, exist_ok=True)
-
+#os.makedirs(TEMP_DIR, exist_ok=True)
+import tempfile
+TEMP_DIR = tempfile.gettempdir()
 # Đường dẫn file làm việc
 INPUT_PATH = os.path.join(TEMP_DIR, "input.bin")
 INPUT_DEMO_PATH = os.path.join(TEMP_DIR, "input_demo.bin")
