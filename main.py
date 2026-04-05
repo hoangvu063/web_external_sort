@@ -66,10 +66,12 @@ def download_full(): return FileResponse(OUTPUT_PATH, filename="sorted.bin")
 def download_demo(): return FileResponse(OUTPUT_DEMO_PATH, filename="sorted_demo.bin")
 
 # --- PHỤC VỤ FRONTEND ---
-# 1. Mount folder frontend để load script.js qua /static/script.js
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
-# 2. Trả về file index.html khi vào địa chỉ gốc /
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"error": "Frontend files not found. Check your directory structure."}, status_code=404)
